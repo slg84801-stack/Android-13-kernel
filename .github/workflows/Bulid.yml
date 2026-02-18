@@ -18,12 +18,13 @@ jobs:
 
       - name: Integrate Latest KernelSU
         run: |
-          # KernelSU integration
-          # Hum direct script chala rahe hain, is umeed mein ki files root mein hain
-          # Agar nahi hain, toh ye command kernel source dhoondh legi
+          # Pehle aapke kernel folder mein ghuso
+          cd Android-13-kernel
+          
+          # Ab KernelSU setup chalao
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
           
-          # Defconfig setting
+          # Defconfig setting (Update path for Android-13-kernel folder)
           DEFCONFIG="arch/arm64/configs/vendor/violet-perf_defconfig"
           if [ -f "$DEFCONFIG" ]; then
             echo "CONFIG_KSU=y" >> $DEFCONFIG
@@ -48,6 +49,8 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           
+          # Build within the subfolder
+          cd Android-13-kernel
           make O=out ARCH=arm64 vendor/violet-perf_defconfig
           make -j$(nproc --all) O=out \
                       ARCH=arm64 \
@@ -59,10 +62,13 @@ jobs:
       - name: Package with AnyKernel3
         run: |
           git clone https://github.com/osm0sis/AnyKernel3.git
-          if [ -f out/arch/arm64/boot/Image.gz-dtb ]; then
-            cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
-          elif [ -f out/arch/arm64/boot/Image ]; then
-            cp out/arch/arm64/boot/Image AnyKernel3/
+          
+          # Image file path fix
+          KERNEL_OUT="Android-13-kernel/out/arch/arm64/boot"
+          if [ -f "$KERNEL_OUT/Image.gz-dtb" ]; then
+            cp $KERNEL_OUT/Image.gz-dtb AnyKernel3/
+          elif [ -f "$KERNEL_OUT/Image" ]; then
+            cp $KERNEL_OUT/Image AnyKernel3/
           fi
           
           cd AnyKernel3
