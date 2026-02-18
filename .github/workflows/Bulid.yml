@@ -7,7 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Kernel Source
-        uses: actions/checkout@v4 # Updated to v4
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Setup Build Environment
         run: |
@@ -16,13 +18,23 @@ jobs:
 
       - name: Integrate Latest KernelSU
         run: |
+          # KernelSU integration
+          # Hum direct script chala rahe hain, is umeed mein ki files root mein hain
+          # Agar nahi hain, toh ye command kernel source dhoondh legi
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
+          
+          # Defconfig setting
           DEFCONFIG="arch/arm64/configs/vendor/violet-perf_defconfig"
-          echo "CONFIG_KSU=y" >> $DEFCONFIG
-          echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-          sed -i 's/CONFIG_LOCALVERSION="-perf"/CONFIG_LOCALVERSION="-Latest-KSU-NRanjan"/g' $DEFCONFIG
+          if [ -f "$DEFCONFIG" ]; then
+            echo "CONFIG_KSU=y" >> $DEFCONFIG
+            echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
+            sed -i 's/CONFIG_LOCALVERSION="-perf"/CONFIG_LOCALVERSION="-Latest-KSU-NRanjan"/g' $DEFCONFIG
+          else
+            echo "Error: Defconfig not found at $DEFCONFIG"
+            exit 1
+          fi
 
-      - name: Download Clang Toolchain
+      - name: Download Toolchain
         run: |
           mkdir clang
           wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r450784d.tar.gz -O clang.tar.gz
@@ -55,11 +67,10 @@ jobs:
           
           cd AnyKernel3
           sed -i 's/device.name1=test/device.name1=violet/g' anykernel.sh
-          sed -i 's/device.name2=test2/device.name2=Redmi Note 7 Pro/g' anykernel.sh
           zip -r9 ../Violet-Latest-KSU.zip * -x .git README.md
           
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4 # Fix: Updated from v3 to v4
+        uses: actions/upload-artifact@v4
         with:
           name: Violet-Latest-KSU-Kernel
           path: Violet-Latest-KSU.zip
