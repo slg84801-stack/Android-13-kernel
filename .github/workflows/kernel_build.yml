@@ -1,4 +1,4 @@
-name: Build Violet KernelSU
+name: Build Violet KernelSU (Final Fix)
 on:
   workflow_dispatch:
 
@@ -6,20 +6,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Cleanup manually (Instead of broken action)
-      - name: Free Disk Space
+      - name: Free Space
         run: |
-          sudo docker image prune -a -f
           sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
           
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential flex git libssl-dev libelf-dev clang lld llvm zip
+          sudo apt-get install -y bc bison build-essential flex git libssl-dev libelf-dev clang lld llvm zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Clone Kernel Source
+      - name: Clone Source
         run: |
-          # Default branch clone karega (Auto-fix for branch error)
           git clone --depth=1 https://github.com/NRanjan-17/kernel_xiaomi_violet.git kernel-source
 
       - name: Setup Proton Clang
@@ -30,29 +27,29 @@ jobs:
         run: |
           cd kernel-source
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
-          # Defconfig check and update
-          if [ -f arch/arm64/configs/vendor/violet-perf_defconfig ]; then
-            CONF=arch/arm64/configs/vendor/violet-perf_defconfig
-          else
-            CONF=arch/arm64/configs/violet_defconfig
-          fi
+          # Automatically find and update defconfig
+          CONF=$(find arch/arm64/configs/ -name "*violet*defconfig" | head -n 1)
           echo "CONFIG_KSU=y" >> $CONF
           echo "CONFIG_OVERLAY_FS=y" >> $CONF
-          echo "KSU Enabled in $CONF"
+          echo "Using Config: $CONF"
 
       - name: Build Kernel
         run: |
           cd kernel-source
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
-          # Violet uses vendor/violet-perf_defconfig usually
-          make O=out ARCH=arm64 vendor/violet-perf_defconfig || make O=out ARCH=arm64 violet_defconfig
+          
+          # Get defconfig name
+          CONF_NAME=$(find arch/arm64/configs/ -name "*violet*defconfig" -exec basename {} \;)
+          
+          # Linker error fix: removing LD=ld.lld and using standard cross-compile
+          make O=out ARCH=arm64 $CONF_NAME
           
           make -j$(nproc --all) O=out \
                ARCH=arm64 \
                CC=clang \
+               CLANG_TRIPLE=aarch64-linux-gnu- \
                CROSS_COMPILE=aarch64-linux-gnu- \
                CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-               LD=ld.lld \
                AR=llvm-ar \
                NM=llvm-nm \
                OBJCOPY=llvm-objcopy \
@@ -62,19 +59,16 @@ jobs:
       - name: Package AnyKernel3
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3 AnyKernel
-          # Check for image and copy
-          if [ -f kernel-source/out/arch/arm64/boot/Image.gz-dtb ]; then
-            cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel/
-          elif [ -f kernel-source/out/arch/arm64/boot/Image.gz ]; then
-            cp kernel-source/out/arch/arm64/boot/Image.gz AnyKernel/
-          fi
+          # Find the compiled image
+          IMG=$(find kernel-source/out/arch/arm64/boot/ -name "Image.gz*" | head -n 1)
+          cp $IMG AnyKernel/
           cd AnyKernel
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
-          zip -r9 ../Violet-KSU-Build.zip *
+          zip -r9 ../Violet-KSU-Kernel.zip *
 
-      - name: Upload Kernel
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Violet-Kernel-Zip
-          path: Violet-KSU-Build.zip
+          name: Violet-Fixed-Kernel
+          path: Violet-KSU-Kernel.zip
           
