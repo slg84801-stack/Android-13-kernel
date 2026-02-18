@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Kernel Source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Updated to v4
 
       - name: Setup Build Environment
         run: |
@@ -16,18 +16,10 @@ jobs:
 
       - name: Integrate Latest KernelSU
         run: |
-          # KernelSU ka official setup script jo 'main' branch (Latest) se source fetch karega
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
-          
-          # Defconfig path update (NRanjan-17/kernel_xiaomi_violet ke liye)
           DEFCONFIG="arch/arm64/configs/vendor/violet-perf_defconfig"
-          
-          # KSU aur Android 13 ke liye OverlayFS enable karna
           echo "CONFIG_KSU=y" >> $DEFCONFIG
           echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-          echo "CONFIG_KSU_DEBUG=n" >> $DEFCONFIG
-          
-          # Version string mein "Latest-KSU" add karna
           sed -i 's/CONFIG_LOCALVERSION="-perf"/CONFIG_LOCALVERSION="-Latest-KSU-NRanjan"/g' $DEFCONFIG
 
       - name: Download Clang Toolchain
@@ -44,7 +36,6 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           
-          # Defconfig aur Compilation
           make O=out ARCH=arm64 vendor/violet-perf_defconfig
           make -j$(nproc --all) O=out \
                       ARCH=arm64 \
@@ -56,7 +47,6 @@ jobs:
       - name: Package with AnyKernel3
         run: |
           git clone https://github.com/osm0sis/AnyKernel3.git
-          # Image file check aur copy
           if [ -f out/arch/arm64/boot/Image.gz-dtb ]; then
             cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           elif [ -f out/arch/arm64/boot/Image ]; then
@@ -64,14 +54,12 @@ jobs:
           fi
           
           cd AnyKernel3
-          # AnyKernel variables setup
           sed -i 's/device.name1=test/device.name1=violet/g' anykernel.sh
           sed -i 's/device.name2=test2/device.name2=Redmi Note 7 Pro/g' anykernel.sh
-          
           zip -r9 ../Violet-Latest-KSU.zip * -x .git README.md
           
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4 # Fix: Updated from v3 to v4
         with:
           name: Violet-Latest-KSU-Kernel
           path: Violet-Latest-KSU.zip
