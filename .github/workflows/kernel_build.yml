@@ -1,24 +1,24 @@
-name: Remote Build Violet Kernel
+name: Build Violet KernelSU
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Manual build button ke liye
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Workflow
-        uses: actions/checkout@v4
+      - name: Cleanup Environment
+        uses: itachi-shisui/action-cleanup@main
 
-      - name: Install Build Tools
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential flex git libssl-dev libelf-dev clang lld llvm
+          sudo apt-get install -y bc bison build-essential flex git libssl-dev libelf-dev clang lld llvm ccache zip
 
       - name: Clone Kernel Source
         run: |
-          # Yaha hum aapki di hui link se source clone kar rahe hain
-          git clone --depth=1 https://github.com/NRanjan-17/kernel_xiaomi_violet.git -b arrows kernel-source
-          
+          # Default branch clone kar rahe hain bina branch name ke tension ke
+          git clone --depth=1 https://github.com/NRanjan-17/kernel_xiaomi_violet.git kernel-source
+
       - name: Setup Proton Clang
         run: |
           git clone --depth=1 https://github.com/kdrag0n/proton-clang clang
@@ -27,7 +27,7 @@ jobs:
         run: |
           cd kernel-source
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
-          # Defconfig mein KSU enable karna
+          # Defconfig update (Violet ke liye standard config)
           echo "CONFIG_KSU=y" >> arch/arm64/configs/vendor/violet-perf_defconfig
           echo "CONFIG_OVERLAY_FS=y" >> arch/arm64/configs/vendor/violet-perf_defconfig
 
@@ -45,11 +45,21 @@ jobs:
                NM=llvm-nm \
                OBJCOPY=llvm-objcopy \
                OBJDUMP=llvm-objdump \
-               STRIP=llvm-strip
+               STRIP=llvm-strip \
+               LD=ld.lld
 
-      - name: Upload Kernel Image
+      - name: Package with AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3 AnyKernel
+          cp kernel-source/out/arch/arm64/boot/Image.gz-dtb AnyKernel/
+          cd AnyKernel
+          # Violet specific setup in AnyKernel
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
+          zip -r9 ../Violet-KernelSU-Build.zip * -x .git README.md
+
+      - name: Upload Flashable Zip
         uses: actions/upload-artifact@v4
         with:
-          name: Violet-KernelSU-Image
-          path: kernel-source/out/arch/arm64/boot/Image.gz-dtb
+          name: Violet-KernelSU-Zip
+          path: Violet-KernelSU-Build.zip
           
