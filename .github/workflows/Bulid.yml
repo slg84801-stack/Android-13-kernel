@@ -1,4 +1,4 @@
-name: Build Violet Kernel with Latest KSU
+name: Build Violet Kernel (Auto-Source + KSU)
 on:
   workflow_dispatch:
 
@@ -6,34 +6,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Kernel Source
+      - name: Checkout (Empty Repo)
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
       - name: Setup Build Environment
         run: |
           sudo apt-get update
           sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm zip curl git
 
+      - name: Clone Kernel Source
+        run: |
+          # Yahan hum asli source code clone kar rahe hain kyunki aapka repo khali hai
+          git clone --depth=1 https://github.com/slg84801-project/Android-13-kernel.git source
+          
       - name: Integrate Latest KernelSU
         run: |
-          # Pehle aapke kernel folder mein ghuso
-          cd Android-13-kernel
-          
-          # Ab KernelSU setup chalao
+          cd source
+          # KernelSU Setup
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
           
-          # Defconfig setting (Update path for Android-13-kernel folder)
+          # Defconfig setting
           DEFCONFIG="arch/arm64/configs/vendor/violet-perf_defconfig"
-          if [ -f "$DEFCONFIG" ]; then
-            echo "CONFIG_KSU=y" >> $DEFCONFIG
-            echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
-            sed -i 's/CONFIG_LOCALVERSION="-perf"/CONFIG_LOCALVERSION="-Latest-KSU-NRanjan"/g' $DEFCONFIG
-          else
-            echo "Error: Defconfig not found at $DEFCONFIG"
-            exit 1
-          fi
+          echo "CONFIG_KSU=y" >> $DEFCONFIG
+          echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG
+          sed -i 's/CONFIG_LOCALVERSION="-perf"/CONFIG_LOCALVERSION="-Latest-KSU-NRanjan"/g' $DEFCONFIG
 
       - name: Download Toolchain
         run: |
@@ -49,8 +45,7 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           
-          # Build within the subfolder
-          cd Android-13-kernel
+          cd source
           make O=out ARCH=arm64 vendor/violet-perf_defconfig
           make -j$(nproc --all) O=out \
                       ARCH=arm64 \
@@ -63,21 +58,20 @@ jobs:
         run: |
           git clone https://github.com/osm0sis/AnyKernel3.git
           
-          # Image file path fix
-          KERNEL_OUT="Android-13-kernel/out/arch/arm64/boot"
-          if [ -f "$KERNEL_OUT/Image.gz-dtb" ]; then
-            cp $KERNEL_OUT/Image.gz-dtb AnyKernel3/
-          elif [ -f "$KERNEL_OUT/Image" ]; then
-            cp $KERNEL_OUT/Image AnyKernel3/
+          # Image file copy from 'source' folder
+          if [ -f source/out/arch/arm64/boot/Image.gz-dtb ]; then
+            cp source/out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+          elif [ -f source/out/arch/arm64/boot/Image ]; then
+            cp source/out/arch/arm64/boot/Image AnyKernel3/
           fi
           
           cd AnyKernel3
           sed -i 's/device.name1=test/device.name1=violet/g' anykernel.sh
-          zip -r9 ../Violet-Latest-KSU.zip * -x .git README.md
+          zip -r9 ../Violet-Latest-KSU-NRanjan.zip * -x .git README.md
           
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Violet-Latest-KSU-Kernel
-          path: Violet-Latest-KSU.zip
+          name: Violet-Kernel-KSU
+          path: Violet-Latest-KSU-NRanjan.zip
           
